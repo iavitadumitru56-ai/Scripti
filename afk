@@ -1,0 +1,204 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- === 1. СОЗДАНИЕ ИНТЕРФЕЙСА (GUI) ===
+local afkGui = Instance.new("ScreenGui")
+afkGui.Name = "AFK_Screen"
+afkGui.IgnoreGuiInset = true -- Игнорируем верхнюю панель, чтобы было на весь экран
+afkGui.ResetOnSpawn = false -- Не удалять при смерти
+afkGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Задний фон
+local bgImage = Instance.new("ImageLabel")
+bgImage.Size = UDim2.new(1, 0, 1, 0)
+bgImage.Image = "rbxassetid://70893320037930"
+bgImage.ScaleType = Enum.ScaleType.Crop
+bgImage.Visible = false
+bgImage.Parent = afkGui
+
+-- Часы по центру
+local clockLabel = Instance.new("TextLabel")
+clockLabel.Size = UDim2.new(0, 400, 0, 150)
+clockLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+clockLabel.Position = UDim2.new(0.5, 0, 0.4, 0) -- Немного выше центра, чтобы под ним влезли кнопки
+clockLabel.BackgroundTransparency = 1
+clockLabel.TextScaled = true
+clockLabel.Font = Enum.Font.GothamBold
+clockLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+clockLabel.Parent = bgImage
+
+-- Музыка
+local bgMusic = Instance.new("Sound")
+bgMusic.SoundId = "rbxassetid://140662085604483"
+bgMusic.Volume = 0.5
+bgMusic.Looped = true
+bgMusic.Parent = afkGui
+
+-- Базовые позиции кнопок
+local btn1BasePos = UDim2.new(0.5, 0, 0.6, 0)       -- Кнопка Live (по центру)
+local btn2BasePos = UDim2.new(0.5, 120, 0.6, 0)     -- Кнопка Закрыть (немного справа)
+local btn3BasePos = UDim2.new(0.5, -120, 0.6, 0)    -- Тоггл телепорта (немного слева для баланса)
+
+-- Кнопка 1 (Live / Выйти)
+local button1 = Instance.new("ImageButton")
+button1.Size = UDim2.new(0, 90, 0, 90)
+button1.AnchorPoint = Vector2.new(0.5, 0.5)
+button1.Position = btn1BasePos
+button1.Image = "rbxassetid://10797620756"
+button1.BackgroundTransparency = 1
+button1.Parent = bgImage
+
+-- Кнопка 2 (Закрыть АФК и играть дальше)
+local button2 = Instance.new("ImageButton")
+button2.Size = UDim2.new(0, 90, 0, 90)
+button2.AnchorPoint = Vector2.new(0.5, 0.5)
+button2.Position = btn2BasePos
+button2.Image = "rbxassetid://78210992928896"
+button2.BackgroundTransparency = 1
+button2.Parent = bgImage
+
+-- Кнопка 3 (Тоггл телепорта)
+local button3 = Instance.new("ImageButton")
+button3.Size = UDim2.new(0, 90, 0, 90)
+button3.AnchorPoint = Vector2.new(0.5, 0.5)
+button3.Position = btn3BasePos
+button3.Image = "rbxassetid://7461510428"
+button3.BackgroundTransparency = 1
+button3.ImageColor3 = Color3.fromRGB(150, 150, 150) -- Делаем темнее по умолчанию (выключена)
+button3.Parent = bgImage
+
+
+-- === 2. ЛОГИКА ТАЙМЕРА АФК ===
+local AFK_TIME_LIMIT = 120 -- Для теста стоит 10 секунд (потом поменяй на 120 для 2 минут)
+local lastInputTime = tick()
+local isAfk = false
+
+-- Обновляем таймер при любом движении или нажатии
+local function resetAfkTimer()
+	lastInputTime = tick()
+end
+UserInputService.InputBegan:Connect(resetAfkTimer)
+UserInputService.InputChanged:Connect(resetAfkTimer)
+
+-- Проверка АФК каждый кадр
+RunService.Heartbeat:Connect(function()
+	if not isAfk and (tick() - lastInputTime >= AFK_TIME_LIMIT) then
+		isAfk = true
+		bgImage.Visible = true
+		bgMusic:Play()
+	end
+end)
+
+
+-- === 3. ЛОГИКА ЧАСОВ ===
+task.spawn(function()
+	while task.wait(1) do
+		-- Получаем локальное время игрока
+		local timeDict = os.date("*t")
+		clockLabel.Text = string.format("%02d:%02d", timeDict.hour, timeDict.min)
+	end
+end)
+
+
+-- === 4. ФУНКЦИОНАЛ КНОПОК ===
+
+-- [Кнопка 1] - "Live", игра в кошки-мышки с мышкой
+local isEvading = false
+local evasionStart = 0
+local evasionCooldown = false
+
+RunService.RenderStepped:Connect(function(dt)
+	if not bgImage.Visible then return end
+
+	local mouseLocation = UserInputService:GetMouseLocation()
+	local btnPos = button1.AbsolutePosition + (button1.AbsoluteSize / 2)
+	local distance = (mouseLocation - btnPos).Magnitude
+
+	-- Если мышка подводится ближе 130 пикселей
+	if distance < 130 then
+		if not isEvading and not evasionCooldown then
+			isEvading = true
+			evasionStart = tick()
+		end
+
+		if isEvading then
+			local timeEvading = tick() - evasionStart
+			if timeEvading > 5 then
+				-- Если человек пытается уже больше 5 секунд, кнопка сдается
+				isEvading = false
+				evasionCooldown = true
+			else
+				-- Кнопка слабо уходит в противоположную от мышки сторону
+				local dir = (btnPos - mouseLocation).Unit
+				if dir.X ~= dir.X then dir = Vector2.new(1, 0) end -- Проверка на NaN
+				
+				local pushDistance = 45 -- Сила, с которой она "убегает"
+				local targetPos = btn1BasePos + UDim2.new(0, dir.X * pushDistance, 0, dir.Y * pushDistance)
+				
+				-- Плавное движение
+				button1.Position = button1.Position:Lerp(targetPos, 8 * dt)
+			end
+		end
+		
+		if evasionCooldown then
+			-- Кнопка успокоилась и возвращается на место
+			button1.Position = button1.Position:Lerp(btn1BasePos, 10 * dt)
+		end
+	else
+		-- Мышку убрали — сбрасываем всё, кнопка снова будет убегать в следующий раз
+		if isEvading or evasionCooldown then
+			isEvading = false
+			evasionCooldown = false
+		end
+		-- Плавный возврат на место
+		button1.Position = button1.Position:Lerp(btn1BasePos, 10 * dt)
+	end
+end)
+
+button1.MouseButton1Click:Connect(function()
+	game:Shutdown() -- Отключает игрока от игры
+end)
+
+
+-- [Кнопка 2] - Закрыть АФК экран и продолжить игру
+button2.MouseButton1Click:Connect(function()
+	isAfk = false
+	bgImage.Visible = false
+	bgMusic:Pause()
+	resetAfkTimer()
+end)
+
+
+-- [Кнопка 3] - Тоггл Телепорта
+local isTeleportToggled = false
+local tpCFrame = CFrame.new(
+	-547.099976, -7.35040379, 75.4951172, 
+	-0.179698572, 7.50850973e-08, 0.983721733, 
+	7.343926e-08, 1, -6.29122709e-08, 
+	-0.983721733, 6.09385467e-08, -0.179698572
+)
+
+button3.MouseButton1Click:Connect(function()
+	isTeleportToggled = not isTeleportToggled
+	
+	if isTeleportToggled then
+		-- Включаем: делаем белой / яркой
+		button3.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	else
+		-- Выключаем: делаем снова тусклой
+		button3.ImageColor3 = Color3.fromRGB(150, 150, 150)
+	end
+end)
+
+-- Телепортация каждый тик (если тоггл включен)
+RunService.Heartbeat:Connect(function()
+	if isTeleportToggled then
+		local char = player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			char.HumanoidRootPart.CFrame = tpCFrame
+		end
+	end
+end)
