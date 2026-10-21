@@ -17211,3 +17211,4 @@ return function(host)
 	end);
 end;
 ]===];
+return loadstring(SOURCE)(LIBRARY_SOURCE)
