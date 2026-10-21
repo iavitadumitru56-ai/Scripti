@@ -53,7 +53,7 @@ function lib:apply(data)
 	end;
 	return applyConfig(self, patched or data);
 end;
-NeverLose.GlobalLogo = "rbxassetid://128212158521764";
+NeverLose.GlobalLogo = lib.logo;
 NeverLose.EnabledBlur = false;
 NeverLose.UnloadEnabled = false;
 NeverLose.GlobalSignals = {};
