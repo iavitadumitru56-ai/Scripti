@@ -53,7 +53,7 @@ function lib:apply(data)
 	end;
 	return applyConfig(self, patched or data);
 end;
-NeverLose.GlobalLogo = lib.logo;
+NeverLose.GlobalLogo = "rbxassetid://128212158521764";
 NeverLose.EnabledBlur = false;
 NeverLose.UnloadEnabled = false;
 NeverLose.GlobalSignals = {};
@@ -236,7 +236,7 @@ end;
 
 function NeverLose.SetWatermarkText(text)
 	for _, child in ipairs(lib.scr:GetDescendants()) do
-		if child:IsA("TextLabel") and child.Text == "inertiahub.xyz" then
+		if child:IsA("TextLabel") and child.Text == "Pasta Hub" then
 			child.Text = tostring(text or "");
 
 			return true;
@@ -17211,4 +17211,3 @@ return function(host)
 	end);
 end;
 ]===];
-return loadstring(SOURCE)(LIBRARY_SOURCE)
